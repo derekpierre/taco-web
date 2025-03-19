@@ -4,6 +4,12 @@ import { CONTEXT_PARAM_FULL_MATCH_REGEXP } from '../const';
 
 import { plainStringSchema } from './common';
 
+const UINT256_MAX = BigInt(
+  '115792089237316195423570985008687907853269984665640564039457584007913129639935',
+);
+const INT256_MIN = BigInt(
+  '-57896044618658097711785492504343953926634992332820282019728792003956564819968',
+);
 export const contextParamSchema = z
   .string()
   .regex(CONTEXT_PARAM_FULL_MATCH_REGEXP)
@@ -29,21 +35,9 @@ const paramSchema = z.union([
 const blockchainBigIntSchema = z
   .bigint()
   .refine((val) => {
-    if (
-      val >
-      BigInt(
-        '115792089237316195423570985008687907853269984665640564039457584007913129639935',
-      )
-    ) {
-      // uint256 max
+    if (val > UINT256_MAX) {
       return false;
-    } else if (
-      val <
-      BigInt(
-        '-57896044618658097711785492504343953926634992332820282019728792003956564819968',
-      )
-    ) {
-      // int256 min
+    } else if (val < INT256_MIN) {
       return false;
     }
     return true;
