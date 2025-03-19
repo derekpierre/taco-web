@@ -1,7 +1,6 @@
 import { TEST_CHAIN_ID } from '@nucypher/test-utils';
 import { describe, expect, it } from 'vitest';
 
-import { ContractCondition } from '../../src/conditions/base/contract';
 import { ConditionExpression } from '../../src/conditions/condition-expr';
 
 describe('check that valid lingo in python is valid in typescript', () => {
@@ -134,81 +133,64 @@ describe('check that valid lingo in python is valid in typescript', () => {
   });
 });
 
-describe('check large numbers', () => {
-  it('checking uint256 max', () => {
-    const uint256ContractConditionProps = {
-      conditionType: 'contract',
-      chain: TEST_CHAIN_ID,
-      method: 'method',
-      parameters: [
-        // eslint-disable-next-line @typescript-eslint/no-loss-of-precision
-        115792089237316195423570985008687907853269984665640564039457584007913129639935,
-      ],
-      contractAddress: '0xA1bd3630a13D54EDF7320412B5C9F289230D260d',
-      functionAbi: {
-        type: 'function',
-        name: 'someMethod',
-        stateMutability: 'view',
-        inputs: [
-          {
-            name: '_value',
-            type: 'uint256',
-            internalType: 'uint256',
-          },
-        ],
-        outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
-      },
-      returnValueTest: {
-        comparator: '==',
-        // eslint-disable-next-line @typescript-eslint/no-loss-of-precision
-        value: 115792089237316195423570985008687907853269984665640564039457584007913129639935,
-      },
-    };
+describe('check bigint & number serialization', () => {
+  it.each([
+    // quoted
+    [
+      BigInt(
+        '115792089237316195423570985008687907853269984665640564039457584007913129639935',
+      ),
+      `:"115792089237316195423570985008687907853269984665640564039457584007913129639935"`,
+      'uint256',
+    ], // uint256 max
+    [
+      BigInt(
+        '-57896044618658097711785492504343953926634992332820282019728792003956564819968',
+      ),
+      `:"-57896044618658097711785492504343953926634992332820282019728792003956564819968"`,
+      'int256',
+    ], // int256 min
 
-    const contractCondition = new ContractCondition(
-      uint256ContractConditionProps,
-    );
-    const conditionExpr = new ConditionExpression(contractCondition);
-    expect(conditionExpr.toJson()).toContain(
-      '115792089237316195423570985008687907853269984665640564039457584007913129639935',
-    );
-  });
-
-  it('checking int256 min', () => {
-    const int256ContractConditionProps = {
-      conditionType: 'contract',
-      chain: TEST_CHAIN_ID,
-      method: 'method',
-      parameters: [
-        -57896044618658097711785492504343953926634992332820282019728792003956564819968,
-      ],
-      contractAddress: '0xA1bd3630a13D54EDF7320412B5C9F289230D260d',
-      functionAbi: {
-        type: 'function',
-        name: 'someMethod',
-        stateMutability: 'view',
-        inputs: [
-          {
-            name: '_value',
-            type: 'int256',
-            internalType: 'int256',
-          },
-        ],
-        outputs: [{ name: '', type: 'int256', internalType: 'int256' }],
-      },
-      returnValueTest: {
-        comparator: '==',
-        value:
-          -57896044618658097711785492504343953926634992332820282019728792003956564819968,
-      },
-    };
-
-    const contractCondition = new ContractCondition(
-      int256ContractConditionProps,
-    );
-    const conditionExpr = new ConditionExpression(contractCondition);
-    expect(conditionExpr.toJson()).toContain(
-      '-5789604461865809771178549250434395392663499233282028201972879200395',
-    );
-  });
+    // not quoted i.e. used as regular number even if provided as bigint
+    [Number.MAX_SAFE_INTEGER, `:${Number.MAX_SAFE_INTEGER}`, 'uint256'], // max safe integer
+    [Number.MIN_SAFE_INTEGER, `:${Number.MIN_SAFE_INTEGER}`, 'int256'], // min safe integer
+    [BigInt(214), ':214', 'uint256'], // number in safe range - not quoted
+    [BigInt(-213214), ':-213214', 'uint256'], // number in safe range - not quoted
+  ])(
+    'checking integer value',
+    (valueInCondition, expectedValueInJson, abiType) => {
+      const conditionProps = {
+        conditionType: 'contract',
+        chain: TEST_CHAIN_ID,
+        method: 'method',
+        parameters: [valueInCondition],
+        contractAddress: '0xA1bd3630a13D54EDF7320412B5C9F289230D260d',
+        functionAbi: {
+          type: 'function',
+          name: 'someMethod',
+          stateMutability: 'view',
+          inputs: [
+            {
+              name: '_value',
+              type: `${abiType}`,
+              internalType: `${abiType}`,
+            },
+          ],
+          outputs: [
+            { name: '', type: `${abiType}`, internalType: `${abiType}` },
+          ],
+        },
+        returnValueTest: {
+          comparator: '==',
+          value: valueInCondition,
+        },
+      };
+      const conditionExprJSON = {
+        version: ConditionExpression.version,
+        condition: conditionProps,
+      };
+      const conditionExpr = ConditionExpression.fromObj(conditionExprJSON);
+      expect(conditionExpr.toJson()).toContain(expectedValueInJson);
+    },
+  );
 });
